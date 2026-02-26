@@ -149,7 +149,11 @@ export default function App() {
     fetchDates();
     if (selectedDate?.id === id) setSelectedDate(null);
   };
+app.use(express.static('dist'));
 
+app.get('*', (req, res) => {
+  res.sendFile(path.resolve('dist', 'index.html'));
+});
   const addMasterUser = async () => {
     if (!newName || !newEmail) return;
 
@@ -463,7 +467,7 @@ export default function App() {
                   </label>
                 </div>
               )}
-
+  
               <div className="bg-white rounded-2xl border border-stone-200 overflow-hidden shadow-sm">
                 <div className="overflow-x-auto">
                   <table className="w-full text-left border-collapse">
@@ -637,3 +641,4 @@ export default function App() {
     </div>
   );
 }
+
