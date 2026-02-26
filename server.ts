@@ -149,11 +149,7 @@ export default function App() {
     fetchDates();
     if (selectedDate?.id === id) setSelectedDate(null);
   };
-app.use(express.static('dist'));
 
-app.get('*', (req, res) => {
-  res.sendFile(path.resolve('dist', 'index.html'));
-});
   const addMasterUser = async () => {
     if (!newName || !newEmail) return;
 
