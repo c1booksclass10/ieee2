@@ -2,7 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import dotenv from 'dotenv';
-import { Pool } from 'pg';
+import Database from 'better-sqlite3';
 import admin from 'firebase-admin';
 
 dotenv.config();
@@ -13,19 +13,25 @@ const PORT = process.env.PORT || 5000;
 // =======================
 // Firebase Admin Setup
 // =======================
-import serviceAccount from './firebase-service-account.json';
+const serviceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
 
-admin.initializeApp({
-  credential: admin.credential.cert(serviceAccount as admin.ServiceAccount)
-});
+if (!serviceAccountJson) {
+  throw new Error('FIREBASE_SERVICE_ACCOUNT_JSON is not set');
+}
+
+const serviceAccount = JSON.parse(serviceAccountJson) as admin.ServiceAccount;
+
+if (!admin.apps.length) {
+  admin.initializeApp({
+    credential: admin.credential.cert(serviceAccount)
+  });
+}
 
 // =======================
 // Database Setup
 // =======================
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false }
-});
+const dbPath = process.env.SQLITE_DB_PATH || './nightslip.db';
+const db = new Database(dbPath);
 
 // =======================
 // Middleware
@@ -45,7 +51,7 @@ app.use(cookieParser());
 app.post('/api/auth/login', async (req, res) => {
   try {
     const { token } = req.body;
-    const decoded = await admin.auth().verifyIdToken(token);
+    await admin.auth().verifyIdToken(token);
 
     res.cookie('session', token, {
       httpOnly: true,
@@ -54,7 +60,7 @@ app.post('/api/auth/login', async (req, res) => {
     });
 
     res.json({ success: true });
-  } catch (err) {
+  } catch {
     res.status(401).json({ error: 'Invalid token' });
   }
 });
@@ -97,19 +103,19 @@ const requireAuth = async (req: any, res: any, next: any) => {
 // =======================
 
 app.get('/api/dates', requireAuth, async (_, res) => {
-  const result = await pool.query('SELECT * FROM dates ORDER BY date_string DESC');
-  res.json(result.rows);
+  const rows = db.prepare('SELECT * FROM dates ORDER BY date_string DESC').all();
+  res.json(rows);
 });
 
 app.post('/api/dates', requireAuth, async (req, res) => {
   const { date_string } = req.body;
-  await pool.query('INSERT INTO dates (date_string) VALUES ($1)', [date_string]);
+  db.prepare('INSERT INTO dates (date_string) VALUES (?)').run(date_string);
   res.json({ success: true });
 });
 
 app.delete('/api/dates/:id', requireAuth, async (req, res) => {
   const { id } = req.params;
-  await pool.query('DELETE FROM dates WHERE id = $1', [id]);
+  db.prepare('DELETE FROM dates WHERE id = ?').run(id);
   res.json({ success: true });
 });
 
@@ -119,21 +125,15 @@ app.delete('/api/dates/:id', requireAuth, async (req, res) => {
 
 app.get('/api/dates/:id/entries', requireAuth, async (req, res) => {
   const { id } = req.params;
-  const result = await pool.query(
-    'SELECT * FROM entries WHERE date_id = $1',
-    [id]
-  );
-  res.json(result.rows);
+  const rows = db.prepare('SELECT * FROM entries WHERE date_id = ?').all(id);
+  res.json(rows);
 });
 
 app.patch('/api/dates/:dateId/users/:userId', requireAuth, async (req, res) => {
   const { dateId, userId } = req.params;
   const { field, value } = req.body;
 
-  await pool.query(
-    `UPDATE entries SET ${field} = $1 WHERE id = $2 AND date_id = $3`,
-    [value, userId, dateId]
-  );
+  db.prepare(`UPDATE entries SET ${field} = ? WHERE id = ? AND date_id = ?`).run(value, userId, dateId);
 
   res.json({ success: true });
 });
@@ -141,16 +141,15 @@ app.patch('/api/dates/:dateId/users/:userId', requireAuth, async (req, res) => {
 app.post('/api/dates/:id/reset', requireAuth, async (req, res) => {
   const { id } = req.params;
 
-  await pool.query(
+  db.prepare(
     `UPDATE entries
      SET coming='NOT COMING',
          applied='NOT APPLIED',
          attendance_1='ABSENT',
          attendance_2='ABSENT',
          is_locked=0
-     WHERE date_id=$1`,
-    [id]
-  );
+     WHERE date_id=?`
+  ).run(id);
 
   res.json({ success: true });
 });
@@ -163,11 +162,10 @@ app.post('/api/users', requireAuth, async (req, res) => {
   const { users } = req.body;
 
   for (const user of users) {
-    await pool.query(
+    db.prepare(
       `INSERT INTO entries (name, reg_no, email, coming, applied, attendance_1, attendance_2, is_locked)
-       VALUES ($1,$2,$3,'NOT COMING','NOT APPLIED','ABSENT','ABSENT',0)`,
-      [user.name, user.reg_no, user.email]
-    );
+       VALUES (?,?,?,'NOT COMING','NOT APPLIED','ABSENT','ABSENT',0)`
+    ).run(user.name, user.reg_no, user.email);
   }
 
   res.json({ success: true });
@@ -177,17 +175,14 @@ app.patch('/api/users/:id', requireAuth, async (req, res) => {
   const { id } = req.params;
   const { field, value } = req.body;
 
-  await pool.query(
-    `UPDATE entries SET ${field} = $1 WHERE id = $2`,
-    [value, id]
-  );
+  db.prepare(`UPDATE entries SET ${field} = ? WHERE id = ?`).run(value, id);
 
   res.json({ success: true });
 });
 
 app.delete('/api/users/:id', requireAuth, async (req, res) => {
   const { id } = req.params;
-  await pool.query('DELETE FROM entries WHERE id=$1', [id]);
+  db.prepare('DELETE FROM entries WHERE id=?').run(id);
   res.json({ success: true });
 });
 
