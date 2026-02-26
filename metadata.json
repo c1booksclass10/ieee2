@@ -1,0 +1,5 @@
+{
+  "name": "Night Slip Management",
+  "description": "Secure night slip and late hour request management system with Google Authentication.",
+  "requestFramePermissions": []
+}
