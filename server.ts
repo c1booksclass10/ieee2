@@ -18,7 +18,7 @@ const db = new Database('nightslip.db');
 
 // The URL of your published Google Apps Script Web App
 // Change this to the URL you get after deploying the Apps Script
-const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxAgZcW5nvWhPSTtoiMeD06cSMA3FmX4qHOJtdADOBJuQX1rK63QESjxg8-mkdWaQ5Brg/exec';
+const APPS_SCRIPT_URL = process.env.APPS_SCRIPT_URL || 'YOUR_APPS_SCRIPT_WEB_APP_URL_HERE';
 
 // Initialize Database
 db.exec(`
@@ -67,7 +67,7 @@ declare global {
 }
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = Number(process.env.PORT) || 3000;
 const ADMIN_EMAILS = ['ieeeitsvitvellore@gmail.com', 'liki123456m@gmail.com'];
 
 
